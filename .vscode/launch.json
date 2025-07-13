@@ -15,7 +15,7 @@
 		},
 		{
 			"name": "PictureCutter",
-			"script": "${workspaceFolder}/scripts/PictureCutter.jsx",
+			"script": "${workspaceFolder}/tests/PictureCutter.jsx",
 			"type": "extendscript-debug",
 			"request": "launch",
 			"hostAppSpecifier": "photoshop-150.064",

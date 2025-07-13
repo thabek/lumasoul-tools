@@ -5,18 +5,18 @@ function PictureCutter() {
 	this.variants = [
 		{
 			'name': 'Standardowa piątka', 'width': 200, 'height': 100, 'coordinates': [
-				{ 'x': 0.1, 'y': 0.5, 'width': 0.2, 'height': 0.6 },
-				{ 'x': 0.3, 'y': 0.5, 'width': 0.2, 'height': 0.8 },
-				{ 'x': 0.5, 'y': 0.5, 'width': 0.2, 'height': 1.0 },
-				{ 'x': 0.7, 'y': 0.5, 'width': 0.2, 'height': 0.8 },
-				{ 'x': 0.9, 'y': 0.5, 'width': 0.2, 'height': 0.6 },
+				{ 'x': 0.1, 'y': 0.5, 'width': 0.2, 'height': 0.6, 'hShift': -4, 'vShift': 0 },
+				{ 'x': 0.3, 'y': 0.5, 'width': 0.2, 'height': 0.8, 'hShift': -2, 'vShift': 0 },
+				{ 'x': 0.5, 'y': 0.5, 'width': 0.2, 'height': 1.0, 'hShift': 0, 'vShift': 0 },
+				{ 'x': 0.7, 'y': 0.5, 'width': 0.2, 'height': 0.8, 'hShift': 2, 'vShift': 0 },
+				{ 'x': 0.9, 'y': 0.5, 'width': 0.2, 'height': 0.6, 'hShift': 4, 'vShift': 0 },
 			]
 		},
 		{
 			'name': 'Równa trójka', 'width': 120, 'height': 80, 'coordinates': [
-				{ 'x': 2 / 12, 'y': 0.5, 'width': 1 / 3, 'height': 1.0 },
-				{ 'x': 0.5, 'y': 0.5, 'width': 1 / 3, 'height': 1.0 },
-				{ 'x': 1 - 2 / 12, 'y': 0.5, 'width': 1 / 3, 'height': 1.0 },
+				{ 'x': 2 / 12, 'y': 0.5, 'width': 1 / 3, 'height': 1.0, 'hShift': -2, 'vShift': 0 },
+				{ 'x': 0.5, 'y': 0.5, 'width': 1 / 3, 'height': 1.0, 'hShift': 0, 'vShift': 0 },
+				{ 'x': 1 - 2 / 12, 'y': 0.5, 'width': 1 / 3, 'height': 1.0, 'hShift': 2, 'vShift': 0 },
 			]
 		}
 	];
@@ -39,6 +39,7 @@ function PictureCutter() {
 				orientation: 'column',\
 				alignChildren: 'fill',\
 				newDocument: Checkbox {text: 'Utwórz nowy dokument', variableName: 'newDocument', value: true, helpTip: 'Tworzy nowy dokument i umieszcza w nim wycięte części'},\
+				shiftParts: Checkbox {text: 'Rozsuń części', variableName: 'shiftParts', value: true, helpTip: 'Rozsuwa części na standardowe 2 cm'},\
 				enabled: false,\
 			},\
 			buttons: Group {\
@@ -139,13 +140,73 @@ function PictureCutter() {
 		desc15.putReference(id58, ref6);
 		executeAction(id57, desc15, DialogModes.NO);
 	}
+	this.separateLayer = function (originalDocumentWidth, originalDocumentHeight, variant, layerId, targetLayer) {
+		var targetDocument, factor, hShift, vShift;
+
+		targetDocument = targetLayer;
+
+		while (targetDocument.__class__ !== 'Document')
+			targetDocument = targetDocument.parent;
+
+		factor = Math.max(variant.width / originalDocumentWidth, variant.height / originalDocumentHeight);
+		hShift = variant.coordinates[layerId].hShift / factor;
+		vShift = variant.coordinates[layerId].vShift / factor;
+
+		if (app.activeDocument !== targetDocument)
+			app.activeDocument = targetDocument;
+
+		targetLayer.translate(UnitValue(hShift, 'cm'), UnitValue(vShift, 'cm'),);
+	}
+	this.shiftLayers = function (document, layers, variant) {
+		var factor, bounds, a, hShift, vShift, width, height;
+
+		factor = Math.max(variant.width / document.width.as('cm'), variant.height / document.height.as('cm'));
+		bounds = [];
+
+		for (a = 0; a < layers.length; a++) {
+			hShift = variant.coordinates[a].hShift / factor;
+			vShift = variant.coordinates[a].vShift / factor;
+			layers[a].translate(UnitValue(hShift, 'cm'), UnitValue(vShift, 'cm'));
+
+			bounds[0] = bounds[0] == undefined ? layers[a].bounds[0] : Math.min(bounds[0], layers[a].bounds[0], UnitValue(0, 'cm'));
+			bounds[1] = bounds[1] == undefined ? layers[a].bounds[1] : Math.min(bounds[1], layers[a].bounds[1], UnitValue(0, 'cm'));
+			bounds[2] = bounds[2] == undefined ? layers[a].bounds[2] : Math.max(bounds[2], layers[a].bounds[2], document.width);
+			bounds[3] = bounds[3] == undefined ? layers[a].bounds[3] : Math.max(bounds[3], layers[a].bounds[3], document.height);
+		}
+
+		width = Math.abs(bounds[0]) + Math.abs(bounds[2]);
+		height = Math.abs(bounds[1]) + Math.abs(bounds[3]);
+
+		document.resizeCanvas(width, height, AnchorPosition.MIDDLECENTER);
+	}
+	this.revealLayers = function (document, layers) {
+		var document, bounds, a, width, height;
+
+		bounds = [];
+
+		for (a = 0; a < layers.length; a++) {
+			bounds[0] = bounds[0] == undefined ? layers[a].bounds[0] : Math.min(bounds[0], layers[a].bounds[0], UnitValue(0, 'cm'));
+			bounds[1] = bounds[1] == undefined ? layers[a].bounds[1] : Math.min(bounds[1], layers[a].bounds[1], UnitValue(0, 'cm'));
+			bounds[2] = bounds[2] == undefined ? layers[a].bounds[2] : Math.max(bounds[2], layers[a].bounds[2], document.width);
+			bounds[3] = bounds[3] == undefined ? layers[a].bounds[3] : Math.max(bounds[3], layers[a].bounds[3], document.height);
+		}
+
+		width = Math.abs(bounds[0]) + Math.abs(bounds[2]);
+		height = Math.abs(bounds[1]) + Math.abs(bounds[3]);
+
+		if (app.activeDocument !== document)
+			app.activeDocument = document;
+
+		document.resizeCanvas(width, height, AnchorPosition.MIDDLECENTER);
+	}
 	this.cutDocument = function (document, variant, options) {
-		var newDocument, bounds, a, points, layer, group;
+		var newDocument, bounds, layers, a, points, layer, group;
 
 		if (options && options.newDocument && options.newDocument === true)
 			newDocument = this.createNewDocument(document);
 
 		bounds = this.calculateBounds(document, variant);
+		layers = [];
 
 		for (a = 0; a < bounds.length; a++) {
 			points = this.boundsToPoints(bounds[a]);
@@ -179,6 +240,8 @@ function PictureCutter() {
 				layer.translate(bounds[a][0] - layer.bounds[0], bounds[a][1] - layer.bounds[1]);
 				layer.move(group, ElementPlacement.PLACEATEND);
 			}
+
+			layers.push(layer);
 		}
 
 		if (newDocument) {
@@ -188,8 +251,12 @@ function PictureCutter() {
 			newDocument.revealAll();
 			newDocument.trim(TrimType.TRANSPARENT);
 			newDocument.resizeImage(null, null, newDocument.resolution / Math.min(variant.width / newDocument.width.as('cm'), variant.height - newDocument.height.as('cm')), ResampleMethod.NONE);
-			this.zoom();
 		}
+
+		if (options && options.shiftParts && options.shiftParts === true)
+			this.shiftLayers(app.activeDocument, layers, variant);
+
+		this.zoom();
 	}
 	this.perform = function () {
 		var input;
@@ -229,10 +296,5 @@ function PictureCutter() {
 	}
 	this.run();
 }
-
-// while (app.documents.length > 0)
-// 	app.documents[0].close(SaveOptions.DONOTSAVECHANGES);
-
-// app.open(File(File($.fileName).parent.parent + '/tmp/lakeview.psd'));
 
 new PictureCutter();
